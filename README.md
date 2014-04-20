@@ -3,6 +3,8 @@ inject [![Build Status](https://secure.travis-ci.org/101loops/inject.png)](https
 
 Go package for dependency injection.
 
+By keeping the interface of the original, this fork can be used with [Martini](https://github.com/go-martini/martini).
+
 ### Installation
 `go get github.com/101loops/inject`
 
@@ -10,7 +12,7 @@ Go package for dependency injection.
 http://godoc.org/github.com/101loops/inject
 
 ### Credit
-Fork of (https://github.com/codegangsta/inject).
+Fork of https://github.com/codegangsta/inject.
 
 ### License
 MIT (see LICENSE).
