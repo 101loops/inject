@@ -1,11 +1,12 @@
-package inject
+package inject_test
 
 import (
 	"fmt"
-	"time"
+	"github.com/101loops/inject"
+	"math/rand"
 	"reflect"
 	"testing"
-	"math/rand"
+	"time"
 )
 
 type SpecialString interface {
@@ -24,18 +25,18 @@ func init() {
 /* Test Helpers */
 func expect(t *testing.T, a interface{}, b interface{}) {
 	if a != b {
-		t.Errorf("Expected: %v (type %v) - Got: %v (type %v)", b, reflect.TypeOf(b), a, reflect.TypeOf(a))
+		t.Errorf("Expected %v (type %v) - Got %v (type %v)", b, reflect.TypeOf(b), a, reflect.TypeOf(a))
 	}
 }
 
 func refute(t *testing.T, a interface{}, b interface{}) {
 	if a == b {
-		t.Errorf("Did not expect %v (type %v) - Got: %v (type %v)", b, reflect.TypeOf(b), a, reflect.TypeOf(a))
+		t.Errorf("Did not expect %v (type %v) - Got %v (type %v)", b, reflect.TypeOf(b), a, reflect.TypeOf(a))
 	}
 }
 
 func Test_InjectorInvoke(t *testing.T) {
-	injector := New()
+	injector := inject.New()
 	expect(t, injector == nil, false)
 
 	dep := "some dependency"
@@ -48,7 +49,7 @@ func Test_InjectorInvoke(t *testing.T) {
 	typSend := reflect.ChanOf(reflect.SendDir, reflect.TypeOf(dep4).Elem())
 	injector.Set(typRecv, reflect.ValueOf(dep3))
 	injector.Set(typSend, reflect.ValueOf(dep4))
-	
+
 	_, err := injector.Invoke(func(d1 string, d2 SpecialString, d3 <-chan *SpecialString, d4 chan<- *SpecialString) {
 		expect(t, d1, dep)
 		expect(t, d2, dep2)
@@ -62,7 +63,7 @@ func Test_InjectorInvoke(t *testing.T) {
 }
 
 func Test_InjectorInvokeReturnValues(t *testing.T) {
-	injector := New()
+	injector := inject.New()
 	expect(t, injector == nil, false)
 
 	dep := "some dependency"
@@ -76,12 +77,12 @@ func Test_InjectorInvokeReturnValues(t *testing.T) {
 		return "Hello world"
 	})
 
-	expect(t, err, nil)
 	expect(t, result[0].String(), "Hello world")
+	expect(t, err, nil)
 }
 
 func Test_InjectorApply(t *testing.T) {
-	injector := New()
+	injector := inject.New()
 
 	injector.Map("a dep").MapTo("another dep", (*SpecialString)(nil))
 
@@ -94,10 +95,10 @@ func Test_InjectorApply(t *testing.T) {
 }
 
 func Test_InterfaceOf(t *testing.T) {
-	iType := InterfaceOf((*SpecialString)(nil))
+	iType := inject.InterfaceOf((*SpecialString)(nil))
 	expect(t, iType.Kind(), reflect.Interface)
 
-	iType = InterfaceOf((**SpecialString)(nil))
+	iType = inject.InterfaceOf((**SpecialString)(nil))
 	expect(t, iType.Kind(), reflect.Interface)
 
 	// Expecting nil
@@ -105,20 +106,20 @@ func Test_InterfaceOf(t *testing.T) {
 		rec := recover()
 		refute(t, rec, nil)
 	}()
-	iType = InterfaceOf((*testing.T)(nil))
+	iType = inject.InterfaceOf((*testing.T)(nil))
 }
 
 func Test_InjectorSet(t *testing.T) {
 	injector := inject.New()
-	typ      := reflect.TypeOf("string")
-	typSend  := reflect.ChanOf(reflect.SendDir, typ)
-	typRecv  := reflect.ChanOf(reflect.RecvDir, typ)
-	
+	typ := reflect.TypeOf("string")
+	typSend := reflect.ChanOf(reflect.SendDir, typ)
+	typRecv := reflect.ChanOf(reflect.RecvDir, typ)
+
 	// instantiating unidirectional channels is not possible using reflect
 	// http://golang.org/src/pkg/reflect/value.go?s=60463:60504#L2064
 	chanRecv := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, typ), 0)
 	chanSend := reflect.MakeChan(reflect.ChanOf(reflect.BothDir, typ), 0)
-	
+
 	injector.Set(typSend, chanSend)
 	injector.Set(typRecv, chanRecv)
 
@@ -127,9 +128,8 @@ func Test_InjectorSet(t *testing.T) {
 	expect(t, injector.Get(chanSend.Type()).IsValid(), false)
 }
 
-
 func Test_InjectorGet(t *testing.T) {
-	injector := New()
+	injector := inject.New()
 
 	injector.Map("some dependency")
 
@@ -138,17 +138,17 @@ func Test_InjectorGet(t *testing.T) {
 }
 
 func Test_InjectorSetParent(t *testing.T) {
-	injector := New()
+	injector := inject.New()
 	injector.MapTo("another dep", (*SpecialString)(nil))
 
-	injector2 := New()
+	injector2 := inject.New()
 	injector2.SetParent(injector)
 
-	expect(t, injector2.Get(InterfaceOf((*SpecialString)(nil))).IsValid(), true)
+	expect(t, injector2.Get(inject.InterfaceOf((*SpecialString)(nil))).IsValid(), true)
 }
 
 func Test_InjectorInvokeFactory(t *testing.T) {
-	injector := New()
+	injector := inject.New()
 
 	dep := "some dependency"
 	injector.Map(func() string {
@@ -170,7 +170,7 @@ func Test_InjectorInvokeFactory(t *testing.T) {
 }
 
 func Test_InjectorInvokeCascadingFactory(t *testing.T) {
-	injector := New()
+	injector := inject.New()
 
 	answer := 42
 	injector.Map(func() int {
@@ -191,8 +191,8 @@ func Test_InjectorInvokeCascadingFactory(t *testing.T) {
 	expect(t, res[0].String(), sentence)
 }
 
-func Test_InjectorInvokeDependencyLoop(t *testing.T) {
-	injector := New()
+func Test_InjectorInvokeFactoryDependencyLoop(t *testing.T) {
+	injector := inject.New()
 
 	dep := "some dependency"
 	injector.Map(func(d2 string) string {
@@ -208,14 +208,14 @@ func Test_InjectorInvokeDependencyLoop(t *testing.T) {
 	}
 }
 
-func Test_InjectorInvokeWithParentDependency(t *testing.T) {
-	injector := New()
+func Test_InjectorInvokeFactoryWithParentDependency(t *testing.T) {
+	injector := inject.New()
 	dep := "some dependency"
 	injector.Map(func(d2 int) string {
 		return dep
 	})
 
-	injector2 := New()
+	injector2 := inject.New()
 	injector2.Map(42)
 	injector2.SetParent(injector)
 
@@ -228,8 +228,8 @@ func Test_InjectorInvokeWithParentDependency(t *testing.T) {
 	expect(t, res[0].String(), dep)
 }
 
-func Test_InjectorInvokeCaching(t *testing.T) {
-	injector := New()
+func Test_InjectorInvokeFactoryCaching(t *testing.T) {
+	injector := inject.New()
 
 	injector.Map(func() int {
 		return rand.Intn(1000000)

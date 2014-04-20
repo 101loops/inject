@@ -1,4 +1,3 @@
-// Package inject provides utilities for mapping and injecting dependencies in various ways.
 package inject
 
 import (
@@ -27,15 +26,14 @@ func recoverResolvePanic(err *error) {
 				facType := x.fac.Type()
 				for i := 0; i < facType.NumIn(); {
 					m += fmt.Sprintf("%v", facType.In(i))
-					i += 1
+					i++
 				}
 				m += ") " + fmt.Sprintf("%v", facType.Out(0)) + "'"
 				x.message = m
 			}
 
-			*err = fmt.Errorf("Value not found for type %v (%v): %v",
-				chain[len(chain) - 1], x.message, strings.Join(chain, " -> "))
-			//println(fmt.Sprintf("%v", *err))
+			*err = fmt.Errorf("value not found for type %v (%v): %v",
+				chain[len(chain)-1], x.message, strings.Join(chain, " -> "))
 		default:
 			*err = fmt.Errorf("%v", x)
 		}
