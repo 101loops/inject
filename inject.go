@@ -46,9 +46,12 @@ type TypeMapper interface {
 	// This makes it possible to directly map type arguments not possible to instantiate
 	// with reflect like unidirectional channels.
 	Set(reflect.Type, reflect.Value) TypeMapper
-	// Returns the Value that is mapped to the current type. Returns a zeroed Value if
-	// the Type has not been mapped.
-	Get(reflect.Type, ...bool) reflect.Value
+	// Returns the Value that is mapped to the current type. Resolves factory methods
+	// that return the wanted type. Returns a zeroed Value if the Type has not been mapped.
+	Get(reflect.Type) reflect.Value
+	// Returns the Value that is mapped to the current type. Does not resolve factory
+	// methods. Returns a zeroed Value if the Type has not been mapped.
+	GetRaw(reflect.Type) reflect.Value
 }
 
 type injector struct {
@@ -165,22 +168,28 @@ func (inj *injector) Set(typ reflect.Type, val reflect.Value) TypeMapper {
 	return inj
 }
 
-func (inj *injector) Get(want reflect.Type, root ...bool) (ret reflect.Value) {
-	ret = inj.values[want]
+func (inj *injector) Get(want reflect.Type) (val reflect.Value) {
+	val = inj.GetRaw(want)
 
-	if !ret.IsValid() {
-		ret = inj.factories[want]
+	if val.IsValid() && val.Kind() == reflect.Func {
+		val = inj.resolve(val, []reflect.Type{})
 	}
 
-	if !ret.IsValid() && inj.parent != nil {
-		ret = inj.parent.Get(want, false)
+	return val
+}
+
+func (inj *injector) GetRaw(want reflect.Type) reflect.Value {
+	val := inj.values[want]
+
+	if !val.IsValid() {
+		val = inj.factories[want]
 	}
 
-	if ret.IsValid() && ret.Kind() == reflect.Func && (len(root) == 0 || root[0]) {
-		ret = inj.resolve(ret, []reflect.Type{})
+	if !val.IsValid() && inj.parent != nil {
+		val = inj.parent.GetRaw(want)
 	}
 
-	return
+	return val
 }
 
 func (inj *injector) resolve(fac reflect.Value, chain []reflect.Type) reflect.Value {
@@ -204,7 +213,7 @@ func (inj *injector) resolve(fac reflect.Value, chain []reflect.Type) reflect.Va
 			continue
 		}
 
-		args[i] = inj.Get(argType, false)
+		args[i] = inj.GetRaw(argType)
 		if !args[i].IsValid() {
 			panic(resolveError{chain: chain, fac: fac})
 		}
