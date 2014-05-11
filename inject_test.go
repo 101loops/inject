@@ -13,13 +13,21 @@ type SpecialString interface {
 }
 
 type TestStruct struct {
-	Dep1 string        `inject`
+	Dep1 string        `inject:"t" json:"-"`
 	Dep2 SpecialString `inject`
 	Dep3 string
 }
 
 func init() {
 	rand.Seed(time.Now().Unix())
+}
+
+type Greeter struct {
+	Name string
+}
+
+func (g *Greeter) String() string {
+	return "Hello, My name is" + g.Name
 }
 
 /* Test Helpers */
@@ -246,4 +254,12 @@ func Test_InjectorInvokeFactoryCaching(t *testing.T) {
 	})
 
 	expect(t, err, nil)
+}
+
+func TestInjectImplementors(t *testing.T) {
+	injector := inject.New()
+	g := &Greeter{"Jeremy"}
+	injector.Map(g)
+
+	expect(t, injector.Get(inject.InterfaceOf((*fmt.Stringer)(nil))).IsValid(), true)
 }

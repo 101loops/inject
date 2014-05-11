@@ -1,3 +1,4 @@
+// Package inject provides utilities for mapping and injecting dependencies in various ways.
 package inject
 
 import (
@@ -129,7 +130,7 @@ func (inj *injector) Apply(val interface{}) (err error) {
 	for i := 0; i < v.NumField(); i++ {
 		f := v.Field(i)
 		structField := t.Field(i)
-		if f.CanSet() && structField.Tag == "inject" {
+		if f.CanSet() && (structField.Tag == "inject" || structField.Tag.Get("inject") != "") {
 			ft := f.Type()
 			v := inj.Get(ft)
 			if !v.IsValid() {
@@ -155,7 +156,7 @@ func (inj *injector) MapTo(val interface{}, ifacePtr interface{}) TypeMapper {
 }
 
 // Maps the given reflect.Type to the given reflect.Value and returns
-// the Typemapper the mapping has been registered in.
+// the TypeMapper the mapping has been registered in.
 func (inj *injector) Set(typ reflect.Type, val reflect.Value) TypeMapper {
 	if val.Kind() == reflect.Func {
 		if typ.Kind() == reflect.Func {
@@ -168,8 +169,8 @@ func (inj *injector) Set(typ reflect.Type, val reflect.Value) TypeMapper {
 	return inj
 }
 
-func (inj *injector) Get(want reflect.Type) (val reflect.Value) {
-	val = inj.GetRaw(want)
+func (inj *injector) Get(typ reflect.Type) reflect.Value {
+	val := inj.GetRaw(typ)
 
 	if val.IsValid() && val.Kind() == reflect.Func {
 		val = inj.resolve(val, []reflect.Type{})
@@ -178,15 +179,31 @@ func (inj *injector) Get(want reflect.Type) (val reflect.Value) {
 	return val
 }
 
-func (inj *injector) GetRaw(want reflect.Type) reflect.Value {
-	val := inj.values[want]
-
-	if !val.IsValid() {
-		val = inj.factories[want]
+func (inj *injector) GetRaw(typ reflect.Type) reflect.Value {
+	val := inj.values[typ]
+	if val.IsValid() {
+		return val
 	}
 
+	// no concrete types found, try to find a factory
+	if !val.IsValid() {
+		val = inj.factories[typ]
+	}
+
+	// no concrete type or factory found, try to find implementors
+	// if t is an interface
+	if typ.Kind() == reflect.Interface {
+		for k, v := range inj.values {
+			if k.Implements(typ) {
+				val = v
+				break
+			}
+		}
+	}
+
+	// still no type found, try to look it up on the parent
 	if !val.IsValid() && inj.parent != nil {
-		val = inj.parent.GetRaw(want)
+		val = inj.parent.GetRaw(typ)
 	}
 
 	return val
